@@ -8,15 +8,18 @@ from random import randrange
 from typing import List
 from collections import OrderedDict
 from requests.exceptions import Timeout, ConnectTimeout, HTTPError, RequestException
+import json
+
 TABLE_URL = 'https://docs.google.com/spreadsheets/d/1UK-aoLDoJ724KGUN0AzgOLKW1S05W2FLZmSYHdjjYig/'
 
 
 SITE_NAME_WITH_TAGS = {
-    'habr': {'tag': 'span', 'class': 'post-stats__views-count'},
-    'rutube': {'tag': 'span', 'class': 'video-info-card__view-count'},
-    'youtube': {'tag': 'div', 'class': 'watch-view-count'},
-    # 'pikabu': {'tag': 'div', 'class': 'story__views hint'},
-    'pornhub': {'tag': 'span', 'class': 'count'},
+    'habr': {'tag': 'span', 'class': 'post-stats__views-count', 'type': ''},
+    'rutube': {'tag': 'span', 'class': 'video-info-card__view-count', 'type': ''},
+    'youtube': {'tag': 'div', 'class': 'watch-view-count', 'type': ''},
+    # 'pikabu': {'tag': 'div', 'class': 'story__views hint', 'type': ''},
+    'pornhub': {'tag': 'span', 'class': 'count', 'type': ''},
+    'vimeo': {'tag': 'script', 'class': '', 'type': 'application/ld+json'},
 }
 
 
@@ -51,23 +54,37 @@ def get_url_from_gsheet(table_url: str,
     return sh.sheet1.col_values(1)[2:]
 
 
-def remove_unnecessary(count, site_name):
+def remove_unnecessary(watch_count, site_name):
     if site_name == 'youtube':
-        count = ''.join(count.split()[:-1])
+        watch_count = ''.join(watch_count.text.split()[:-1])
     if site_name == 'rutube':
-        count = count.replace(',', '')
+        watch_count = watch_count.text.replace(',', '')
     if site_name == 'pornhub':
-        count = ''.join(count.split())
-    return count
+        watch_count = ''.join(watch_count.text.split())
+    if site_name == 'vimeo':
+        try:
+            watch_count = json.loads(watch_count.string.strip())[0]['interactionStatistic'][2]['userInteractionCount']
+        except (KeyError) as ex:
+            return None
+        except Exception as e:
+            print(e)
+    if site_name == 'habr':
+        watch_count = watch_count.text
+    return watch_count
 
 
 def get_watchers_with_tag(response, site_name):
     soup = BeautifulSoup(response.content, 'html.parser')
     watchers_count = soup.find(
-        SITE_NAME_WITH_TAGS[site_name]['tag'], attrs={"class": SITE_NAME_WITH_TAGS[site_name]['class']})
+        SITE_NAME_WITH_TAGS[site_name]['tag'], attrs={"class": SITE_NAME_WITH_TAGS[site_name]['class'],
+                                                      "type": SITE_NAME_WITH_TAGS[site_name]['type'],
+                                                      })
     if not watchers_count:
         return 'unavailable'
-    watchers_count = remove_unnecessary(watchers_count.text, site_name)
+    watchers_count = remove_unnecessary(watchers_count, site_name)
+    if watchers_count is None:
+        return 'unavailable'
+
     return watchers_count
 
 
