@@ -8,6 +8,12 @@ from requests.exceptions import Timeout, ConnectTimeout, HTTPError, RequestExcep
 TABLE_URL = 'https://docs.google.com/spreadsheets/d/1UK-aoLDoJ724KGUN0AzgOLKW1S05W2FLZmSYHdjjYig/'
 
 
+SITE_NAME_WITH_TAGS = {
+    'habr': 'post-stats__views-count',
+    'rutube': 'video-info-card__view-count'
+}
+
+
 def write_list_to_csv(table_headers, data_list,
                       file_name, add_number_row=True):
     with open(file_name, 'w+',  newline="", encoding='utf-8') as file:
@@ -33,16 +39,19 @@ def write_dictlist_to_csv(data_list,
 
 
 def get_url_from_gsheet(table_url: str,
-                        auth_json_file='key.json') -> List[str]:
+                        auth_json_file='key.json'):
     gc = gspread.service_account(filename=auth_json_file)
     sh = gc.open_by_url(table_url)
     return sh.sheet1.col_values(1)[2:]
 
 
-def get_habr_seen_count(response):
+def get_seen_count_easily(response, class_name):
     soup = BeautifulSoup(response.text, 'lxml')
     seems_count = soup.find(
-        "span", class_="post-stats__views-count").text.replace('k', '000')
+        "span", class_=class_name)  # .text.replace('k', '000')
+    if not seems_count:
+        return 'unavailable'
+    seems_count = seems_count.text.replace('k', '000')
     return int(seems_count.replace(',', ''))
 
 
@@ -73,9 +82,12 @@ def csv_parser(csv_file_name='sheet.csv'):
         try:
 
             seems_count = ''
-            if 'habr.com' in row['url']:
-                response = get_response(row['url'])
-                seems_count = get_habr_seen_count(response)
+            for site_name in SITE_NAME_WITH_TAGS:
+                if site_name in row['url']:
+                    response = get_response(row['url'])
+                    seems_count = get_seen_count_easily(
+                        response, SITE_NAME_WITH_TAGS[site_name])
+                    print(row['url'], seems_count)
             csv_data[row_number]['seems_count'] = seems_count
             # break
         except (Timeout, ConnectTimeout, HTTPError, RequestException) as ex:
