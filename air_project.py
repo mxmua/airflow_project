@@ -13,9 +13,10 @@ TABLE_URL = 'https://docs.google.com/spreadsheets/d/1UK-aoLDoJ724KGUN0AzgOLKW1S0
 
 SITE_NAME_WITH_TAGS = {
     'habr': {'tag': 'span', 'class': 'post-stats__views-count'},
-    'rutube': {'tag': 'span', 'class': 'post-video-count'},
+    'rutube': {'tag': 'span', 'class': 'video-info-card__view-count'},
     'youtube': {'tag': 'div', 'class': 'watch-view-count'},
-    'pikabu': {'tag': 'div', 'class': 'story__views hint'}
+    'pikabu': {'tag': 'div', 'class': 'story__views hint'},
+    'pornhub': {'tag': 'span', 'class': 'count'},
 }
 
 
@@ -50,21 +51,23 @@ def get_url_from_gsheet(table_url: str,
     return sh.sheet1.col_values(1)[2:]
 
 
-def remove_unnecessary(count):
-    if count[-1] == 'k':
-        count = count.replace('k', '000')
-    return ''.join(filter(str.isdigit, count))
+def remove_unnecessary(count, site_name):
+    if site_name == 'youtube':
+        count = ''.join(count.split()[:-1])
+    if site_name == 'rutube':
+        count = count.replace(',', '')
+    if site_name == 'pornhub':
+        count = ''.join(count.split())
+    return count
 
 
 def get_watchers_with_tag(response, site_name):
     soup = BeautifulSoup(response.content, 'html.parser')
     watchers_count = soup.find(
         SITE_NAME_WITH_TAGS[site_name]['tag'], attrs={"class": SITE_NAME_WITH_TAGS[site_name]['class']})
-    print(watchers_count)
     if not watchers_count:
         return 'unavailable'
-
-    watchers_count = remove_unnecessary(watchers_count.text)
+    watchers_count = remove_unnecessary(watchers_count.text, site_name)
     return watchers_count
 
 
@@ -94,17 +97,14 @@ def csv_parser(csv_file_name='sheet.csv'):
 
     for row_number, row in enumerate(csv_data):
         try:
-            should_break = False
             watchers_count = ''
             for site_name in SITE_NAME_WITH_TAGS:
                 if site_name in row['url']:
                     response = get_response(row['url'])
                     watchers_count = get_watchers_with_tag(
                         response, site_name)
-                    # should_break = True
-                    print(url)
-            if should_break:
-                break
+                    print(row['url'], watchers_count)
+            csv_data[row_number]['watchers_count'] = watchers_count
         except (Timeout, ConnectTimeout, HTTPError, RequestException) as ex:
             print(f'{row["url"]} - {ex}')
             csv_data[row_number]['watchers_count'] = 'unavailable'
@@ -112,7 +112,7 @@ def csv_parser(csv_file_name='sheet.csv'):
             print(e)
 
         write_dictlist_to_csv(csv_data, 'parsed.csv')
-        # time.sleep(randrange(1, 4))
+    # time.sleep(randrange(1, 4))
 
 
 def main():
