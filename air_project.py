@@ -15,6 +15,7 @@ SITE_NAME_WITH_TAGS = {
     'habr': {'tag': 'span', 'class': 'post-stats__views-count'},
     'rutube': {'tag': 'span', 'class': 'post-video-count'},
     'youtube': {'tag': 'div', 'class': 'watch-view-count'},
+    'pikabu': {'tag': 'div', 'class': 'story__views hint'}
 }
 
 
@@ -59,8 +60,10 @@ def get_watchers_with_tag(response, site_name):
     soup = BeautifulSoup(response.content, 'html.parser')
     watchers_count = soup.find(
         SITE_NAME_WITH_TAGS[site_name]['tag'], attrs={"class": SITE_NAME_WITH_TAGS[site_name]['class']})
+    print(watchers_count)
     if not watchers_count:
         return 'unavailable'
+
     watchers_count = remove_unnecessary(watchers_count.text)
     return watchers_count
 
@@ -91,7 +94,7 @@ def csv_parser(csv_file_name='sheet.csv'):
 
     for row_number, row in enumerate(csv_data):
         try:
-            # should_break = False
+            should_break = False
             watchers_count = ''
             for site_name in SITE_NAME_WITH_TAGS:
                 if site_name in row['url']:
@@ -99,18 +102,17 @@ def csv_parser(csv_file_name='sheet.csv'):
                     watchers_count = get_watchers_with_tag(
                         response, site_name)
                     # should_break = True
-            csv_data[row_number]['watchers_count'] = watchers_count
-            # if should_break:
-            #     break
+                    print(url)
+            if should_break:
+                break
         except (Timeout, ConnectTimeout, HTTPError, RequestException) as ex:
             print(f'{row["url"]} - {ex}')
             csv_data[row_number]['watchers_count'] = 'unavailable'
         except Exception as e:
             print(e)
 
-        print(row['url'], watchers_count)
         write_dictlist_to_csv(csv_data, 'parsed.csv')
-        time.sleep(randrange(1, 4))
+        # time.sleep(randrange(1, 4))
 
 
 def main():
