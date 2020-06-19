@@ -4,6 +4,7 @@ import time
 import requests
 import re
 from bs4 import BeautifulSoup
+from random import randrange
 from typing import List
 from collections import OrderedDict
 from requests.exceptions import Timeout, ConnectTimeout, HTTPError, RequestException
@@ -109,6 +110,7 @@ def csv_parser(csv_file_name='sheet.csv'):
 
         print(row['url'], watchers_count)
         write_dictlist_to_csv(csv_data, 'parsed.csv')
+        time.sleep(randrange(1, 4))
 
 
 def main():
