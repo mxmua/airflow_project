@@ -113,7 +113,7 @@ def csv_parser(csv_file_name='sheet.csv'):
 
 def main():
     csv_file_name = 'sheet.csv'
-    # write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
+    write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
     csv_parser()
 
 
