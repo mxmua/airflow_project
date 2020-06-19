@@ -15,7 +15,7 @@ SITE_NAME_WITH_TAGS = {
     'habr': {'tag': 'span', 'class': 'post-stats__views-count'},
     'rutube': {'tag': 'span', 'class': 'video-info-card__view-count'},
     'youtube': {'tag': 'div', 'class': 'watch-view-count'},
-    'pikabu': {'tag': 'div', 'class': 'story__views hint'},
+    # 'pikabu': {'tag': 'div', 'class': 'story__views hint'},
     'pornhub': {'tag': 'span', 'class': 'count'},
 }
 
