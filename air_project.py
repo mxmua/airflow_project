@@ -1,6 +1,8 @@
 import gspread
 import csv
+import time
 import requests
+import re
 from bs4 import BeautifulSoup
 from typing import List
 from collections import OrderedDict
@@ -9,8 +11,9 @@ TABLE_URL = 'https://docs.google.com/spreadsheets/d/1UK-aoLDoJ724KGUN0AzgOLKW1S0
 
 
 SITE_NAME_WITH_TAGS = {
-    'habr': 'post-stats__views-count',
-    'rutube': 'video-info-card__view-count'
+    'habr': {'tag': 'span', 'class': 'post-stats__views-count'},
+    'rutube': {'tag': 'span', 'class': 'post-video-count'},
+    'youtube': {'tag': 'div', 'class': 'watch-view-count'},
 }
 
 
@@ -45,20 +48,27 @@ def get_url_from_gsheet(table_url: str,
     return sh.sheet1.col_values(1)[2:]
 
 
-def get_seen_count_easily(response, class_name):
-    soup = BeautifulSoup(response.text, 'lxml')
-    seems_count = soup.find(
-        "span", class_=class_name)  # .text.replace('k', '000')
-    if not seems_count:
+def remove_unnecessary(count):
+    if count[-1] == 'k':
+        count = count.replace('k', '000')
+    return ''.join(filter(str.isdigit, count))
+
+
+def get_watchers_with_tag(response, site_name):
+    soup = BeautifulSoup(response.content, 'html.parser')
+    watchers_count = soup.find(
+        SITE_NAME_WITH_TAGS[site_name]['tag'], attrs={"class": SITE_NAME_WITH_TAGS[site_name]['class']})
+    if not watchers_count:
         return 'unavailable'
-    seems_count = seems_count.text.replace('k', '000')
-    return int(seems_count.replace(',', ''))
+    watchers_count = remove_unnecessary(watchers_count.text)
+    return watchers_count
 
 
-def get_response(url: str, use_headers=False, allow_redirects=True):
-    #     headers = {}
+def get_response(url: str, allow_redirects=True):
+    headers = {"User-Agent": 'Mozilla/5.0 (X11 Linux x86_64) AppleWebKit/537.36 \
+            (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36'}
     response = requests.get(
-        url,  # headers=headers,
+        url,   headers=headers,
         allow_redirects=allow_redirects,  timeout=5)
     response.raise_for_status()
     if response.status_code != 200:
@@ -80,23 +90,24 @@ def csv_parser(csv_file_name='sheet.csv'):
 
     for row_number, row in enumerate(csv_data):
         try:
-
-            seems_count = ''
+            # should_break = False
+            watchers_count = ''
             for site_name in SITE_NAME_WITH_TAGS:
                 if site_name in row['url']:
                     response = get_response(row['url'])
-                    seems_count = get_seen_count_easily(
-                        response, SITE_NAME_WITH_TAGS[site_name])
-                    print(row['url'], seems_count)
-            csv_data[row_number]['seems_count'] = seems_count
-            # break
+                    watchers_count = get_watchers_with_tag(
+                        response, site_name)
+                    # should_break = True
+            csv_data[row_number]['watchers_count'] = watchers_count
+            # if should_break:
+            #     break
         except (Timeout, ConnectTimeout, HTTPError, RequestException) as ex:
             print(f'{row["url"]} - {ex}')
-            csv_data[row_number]['seems_count'] = 'unavailable'
+            csv_data[row_number]['watchers_count'] = 'unavailable'
         except Exception as e:
             print(e)
 
-    # print(csv_data[0])
+        print(row['url'], watchers_count)
         write_dictlist_to_csv(csv_data, 'parsed.csv')
 
 
