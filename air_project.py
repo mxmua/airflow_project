@@ -39,18 +39,18 @@ def get_url_from_gsheet(table_url: str,
     return sh.sheet1.col_values(1)[2:]
 
 
-def get_habr_seen_count(response) -> str:
+def get_habr_seen_count(response):
     soup = BeautifulSoup(response.text, 'lxml')
-    seems_count = soup.find("span", class_="post-stats__views-count").text
-    return seems_count
+    seems_count = soup.find(
+        "span", class_="post-stats__views-count").text.replace('k', '000')
+    return int(seems_count.replace(',', ''))
 
 
 def get_response(url: str, use_headers=False, allow_redirects=True):
-    # if use_headers:
     #     headers = {}
     response = requests.get(
         url,  # headers=headers,
-        allow_redirects=allow_redirects,  timeout=3)
+        allow_redirects=allow_redirects,  timeout=5)
     response.raise_for_status()
     if response.status_code != 200:
         raise requests.exceptions.HTTPError
@@ -71,18 +71,21 @@ def csv_parser(csv_file_name='sheet.csv'):
 
     for row_number, row in enumerate(csv_data):
         try:
-            response = get_response(row['url'])
+
             seems_count = ''
-            if 'habr' in row['url']:
+            if 'habr.com' in row['url']:
+                response = get_response(row['url'])
                 seems_count = get_habr_seen_count(response)
             csv_data[row_number]['seems_count'] = seems_count
             # break
         except (Timeout, ConnectTimeout, HTTPError, RequestException) as ex:
             print(f'{row["url"]} - {ex}')
             csv_data[row_number]['seems_count'] = 'unavailable'
+        except Exception as e:
+            print(e)
 
     # print(csv_data[0])
-    write_dictlist_to_csv(csv_data, 'parsed.csv')
+        write_dictlist_to_csv(csv_data, 'parsed.csv')
 
 
 def main():
