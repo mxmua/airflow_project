@@ -3,6 +3,7 @@ import csv
 import time
 import requests
 import re
+import json
 from datetime import datetime
 from pathlib import Path
 from bs4 import BeautifulSoup
@@ -12,6 +13,7 @@ from collections import OrderedDict
 from selenium import webdriver
 from bs4 import BeautifulSoup
 from requests.exceptions import Timeout, ConnectTimeout, HTTPError, RequestException
+
 TABLE_URL = 'https://docs.google.com/spreadsheets/d/1UK-aoLDoJ724KGUN0AzgOLKW1S05W2FLZmSYHdjjYig/'
 
 FILES_PATH = Path('/home/dimk/Python/airflow_project')
@@ -23,6 +25,7 @@ SITE_NAME_WITH_TAGS = {
     'rutube': {'tag': 'span', 'class': 'video-info-card__view-count'},
     'youtube': {'tag': 'div', 'class': 'watch-view-count'},
     'pornhub': {'tag': 'span', 'class': 'count'},
+    'vimeo': {'tag': 'script', 'class': '', 'type': 'application/ld+json'},
 }
 
 
@@ -57,23 +60,36 @@ def get_url_from_gsheet(table_url: str,
     return sh.sheet1.col_values(1)[2:]
 
 
-def remove_unnecessary(count, site_name):
+def remove_unnecessary(watch_count, site_name):
+    if site_name == 'vimeo':
+        watch_count = json.loads(watch_count.string.strip())[
+            0]['interactionStatistic'][2]['userInteractionCount']
+        return watch_count
+    watch_count = watch_count.text
+
     if site_name == 'youtube':
-        count = ''.join(count.split()[:-1])
+        watch_count = ''.join(watch_count.split()[:-1])
+        return watch_count
+
     if site_name == 'rutube':
-        count = count.replace(',', '')
+        watch_count = watch_count.replace(',', '')
+        return watch_count
+
     if site_name == 'pornhub':
-        count = ''.join(count.split())
-    return count
+        watch_count = ''.join(watch_count.split())
+        return watch_count
 
 
 def get_watchers_with_tag(response, site_name):
     soup = BeautifulSoup(response.content, 'html.parser')
+    tag = SITE_NAME_WITH_TAGS[site_name]['tag']
+    attr_class = SITE_NAME_WITH_TAGS[site_name]['class']
+    attr_type = SITE_NAME_WITH_TAGS[site_name].get('type', '')
     watchers_count = soup.find(
-        SITE_NAME_WITH_TAGS[site_name]['tag'], attrs={"class": SITE_NAME_WITH_TAGS[site_name]['class']})
+        tag, attrs={"class": attr_class, "type": attr_type})
     if not watchers_count:
         return 'unavailable'
-    watchers_count = remove_unnecessary(watchers_count.text, site_name)
+    watchers_count = remove_unnecessary(watchers_count, site_name)
     return watchers_count
 
 
