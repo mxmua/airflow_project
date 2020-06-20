@@ -3,19 +3,25 @@ import csv
 import time
 import requests
 import re
+from datetime import datetime
+from pathlib import Path
 from bs4 import BeautifulSoup
 from random import randrange
 from typing import List
 from collections import OrderedDict
+from selenium import webdriver
+from bs4 import BeautifulSoup
 from requests.exceptions import Timeout, ConnectTimeout, HTTPError, RequestException
 TABLE_URL = 'https://docs.google.com/spreadsheets/d/1UK-aoLDoJ724KGUN0AzgOLKW1S05W2FLZmSYHdjjYig/'
 
+FILES_PATH = Path('/home/dimk/Python/airflow_project')
+UPLOADED_SHEET_FILE = Path.joinpath(FILES_PATH, 'sheet.csv')
+PARSED_DATA_SET_FILE = Path.joinpath(FILES_PATH, 'parsed.csv')
 
 SITE_NAME_WITH_TAGS = {
     'habr': {'tag': 'span', 'class': 'post-stats__views-count'},
     'rutube': {'tag': 'span', 'class': 'video-info-card__view-count'},
     'youtube': {'tag': 'div', 'class': 'watch-view-count'},
-    # 'pikabu': {'tag': 'div', 'class': 'story__views hint'},
     'pornhub': {'tag': 'span', 'class': 'count'},
 }
 
@@ -71,6 +77,24 @@ def get_watchers_with_tag(response, site_name):
     return watchers_count
 
 
+def get_pikabu_watchers(url):
+    # sudo apt install chromium-chromedriver
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    browser = webdriver.Chrome(options=options)
+
+    browser.get(url)
+    generated_html = browser.page_source
+    browser.quit()
+
+    soup = BeautifulSoup(generated_html, 'html.parser')
+    watchers_tag = soup.find('div', attrs={"class": 'story__views hint'})
+    if not watchers_tag:
+        return 'unavailable'
+    watchers_count = ''.join(watchers_tag['aria-label'].split()[:-1])
+    return watchers_count
+
+
 def get_response(url: str, allow_redirects=True):
     headers = {"User-Agent": 'Mozilla/5.0 (X11 Linux x86_64) AppleWebKit/537.36 \
             (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36'}
@@ -92,31 +116,51 @@ def csv_dict_reader(file_name: str, key_field):
     return result_table
 
 
-def csv_parser(csv_file_name='sheet.csv'):
-    csv_data = csv_dict_reader(csv_file_name, 'N')
+def parse_url(url):
+    watchers_count = ''
 
-    for row_number, row in enumerate(csv_data):
-        try:
-            watchers_count = ''
-            for site_name in SITE_NAME_WITH_TAGS:
-                if site_name in row['url']:
-                    response = get_response(row['url'])
-                    watchers_count = get_watchers_with_tag(
-                        response, site_name)
-                    print(row['url'], watchers_count)
-            csv_data[row_number]['watchers_count'] = watchers_count
-        except (Timeout, ConnectTimeout, HTTPError, RequestException) as ex:
-            print(f'{row["url"]} - {ex}')
-            csv_data[row_number]['watchers_count'] = 'unavailable'
-        except Exception as e:
-            print(e)
+    # habr, rutube, youtube, pornhub
+    for site_name in SITE_NAME_WITH_TAGS:
+        if site_name in url:
+            response = get_response(url)
+            watchers_count = get_watchers_with_tag(
+                response, site_name)
 
-        write_dictlist_to_csv(csv_data, 'parsed.csv')
+    # pikabu
+    if 'pikabu' in url:
+        watchers_count = get_pikabu_watchers(url)
+
+    # vimeo
+    if 'vimeo' in url:
+        pass
+
+    return watchers_count
+
+
+def csv_parser():
+    loaded_csv_data = csv_dict_reader(UPLOADED_SHEET_FILE, 'N')
+    # first load
+    if not Path(PARSED_DATA_SET_FILE).exists:
+        for row_number, row in enumerate(loaded_csv_data):
+            try:
+                watchers_count = parse_url(row['url'])
+                csv_data[row_number]['watchers_count'] = watchers_count
+                csv_data[row_number]['parsed_date'] = int(
+                    datetime.now().timestamp())
+            except (Timeout, ConnectTimeout, HTTPError, RequestException) as ex:
+                print(f'{row["url"]} - {ex}')
+                csv_data[row_number]['watchers_count'] = 'unavailable'
+            except Exception as e:
+                print(e)
+            with open('parsed.log', 'a') as file:
+                file.writelines(
+                    f'{row_number}. {row["url"]} - {loaded_csv_data[row_number]["watchers_count"]}\n')
+            write_dictlist_to_csv(loaded_csv_data, PARSED_DATA_SET_FILE)
     # time.sleep(randrange(1, 4))
 
 
 def main():
-    csv_file_name = 'sheet.csv'
+    csv_file_name = UPLOADED_SHEET_FILE
     write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
     csv_parser()
 
