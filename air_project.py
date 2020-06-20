@@ -175,7 +175,7 @@ def parse_url(url):
             RequestException, KeyError) as ex:
         print(f'{url} - {ex}')
         watchers_count = 'unavailable'
-    except Exception as e:
+    except Exception as ex:
         print(f'{url} - {ex}')
         watchers_count = 'unavailable'
     return watchers_count, int(
@@ -217,7 +217,7 @@ def csv_parser(uploaded_sheet_file=UPLOADED_GSHEET_FILE,
         loaded_csv_data[row_number]['rechecked'] = True
 
         # time.sleep(randrange(1, 4))
-        write_dictlist_to_csv(loaded_csv_data, PARSED_DATA_SET_FILE)
+    write_dictlist_to_csv(loaded_csv_data, PARSED_DATA_SET_FILE)
 
     # write_dictlist_to_csv(loaded_csv_data, PARSED_DATA_SET_FILE)
 
@@ -240,12 +240,19 @@ def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
 
 
 def main():
-    # start_time = datetime.now()
+    start_time = datetime.now()
+    print('-------------------------')
+    print(start_time)
+    print('-------------------------')
+
     csv_file_name = UPLOADED_GSHEET_FILE
     write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
     csv_parser()
     write_to_gsheet()
-    # print(datetime.now() - start_time)
+
+    print('-------------------------')
+    print(datetime.now() - start_time)
+    print('-------------------------')
 
 
 if __name__ == '__main__':
