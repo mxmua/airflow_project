@@ -25,6 +25,7 @@ FILES_PATH = Path('/home/dimk/Python/airflow_project')
 UPLOADED_GSHEET_FILE = Path.joinpath(FILES_PATH, 'sheet.csv')
 PARSED_DATA_SET_FILE = Path.joinpath(FILES_PATH, 'parsed.csv')
 PARSED_LOG = Path.joinpath(FILES_PATH, 'parsed.log')
+GSHEET_KEY_FILE = Path.joinpath(FILES_PATH, 'key.json')
 
 SITE_NAME_WITH_TAGS = {
     'habr': {'tag': 'span', 'class': 'post-stats__views-count'},
@@ -59,7 +60,7 @@ def write_dictlist_to_csv(data_list,
 
 
 def get_url_from_gsheet(table_url: str,
-                        auth_json_file='key.json'):
+                        auth_json_file=GSHEET_KEY_FILE):
     gc = gspread.service_account(filename=auth_json_file)
     sh = gc.open_by_url(table_url)
     return sh.sheet1.col_values(1)[2:]
@@ -222,10 +223,28 @@ def csv_parser(uploaded_sheet_file=UPLOADED_GSHEET_FILE,
     # write_dictlist_to_csv(loaded_csv_data, PARSED_DATA_SET_FILE)
 
 
+def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
+                    auth_json_file=GSHEET_KEY_FILE,
+                    table_url=TABLE_URL):
+
+    gc = gspread.service_account(filename=auth_json_file)
+    sh = gc.open_by_url(table_url)
+    loaded_csv_data = csv_dict_reader(parsed_file_name, 'N')
+    watchers_list = []
+    for row in loaded_csv_data:
+        watchers_list.append([row['watchers_count']])
+
+    first_cell = f'D{loaded_csv_data[0]["N"]}'
+    end_cell = f'D{loaded_csv_data[-1]["N"]}'
+
+    sh.sheet1.update(f'{first_cell}:{end_cell}', watchers_list)
+
+
 def main():
-    csv_file_name = UPLOADED_GSHEET_FILE
-    write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
-    csv_parser()
+    # csv_file_name = UPLOADED_GSHEET_FILE
+    # write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
+    # csv_parser()
+    write_to_gsheet()
 
 
 if __name__ == '__main__':
