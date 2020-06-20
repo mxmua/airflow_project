@@ -8,7 +8,6 @@ from datetime import datetime
 from pathlib import Path
 from bs4 import BeautifulSoup
 from random import randrange
-from typing import List
 from collections import OrderedDict
 
 from selenium import webdriver
@@ -241,10 +240,12 @@ def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
 
 
 def main():
-    # csv_file_name = UPLOADED_GSHEET_FILE
-    # write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
-    # csv_parser()
+    # start_time = datetime.now()
+    csv_file_name = UPLOADED_GSHEET_FILE
+    write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
+    csv_parser()
     write_to_gsheet()
+    # print(datetime.now() - start_time)
 
 
 if __name__ == '__main__':
