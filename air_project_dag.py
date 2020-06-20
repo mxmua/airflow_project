@@ -72,13 +72,24 @@ def get_report(file_name: str) -> dict:
 
 def send_report() -> None:
     report = get_report(file_name=os.path.join(STAGE_DIR, RESULT_FILENAME))
-    report_str = f"rows_success_count: {report['rows_success_count']};\n  rows_failed_count: {report['rows_failed_count']}\n"
+    report_str = f"rows_success_count: {report['rows_success_count']};\nrows_failed_count: {report['rows_failed_count']};\n\nFailed details:\n"
 
     for failed_row in report['rows_failed_detail']:
         report_str += f'{failed_row[0]}: {failed_row[1]} \n'
 
-    bot_message(message_text=report_str)
-
+    print(report_str)
+    
+    report_message_lines = report_str.split('\n')
+    message_part = ''
+    n = 0
+    for line in report_message_lines:
+        n += 1
+        message_part += line + '\n'
+        if n >= 200:
+            bot_message(message_text=message_part)
+            n = 0
+            message_part = ''
+    bot_message(message_text=message_part) # last part
 
 
 def on_failure_action(*args, **kwargs):
