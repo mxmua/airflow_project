@@ -73,20 +73,17 @@ def remove_unnecessary(watch_count, site_name):
         return watch_count
 
     watch_count = watch_count.text
-    if site_name == 'habr':
-        return watch_count
 
     if site_name == 'youtube':
         watch_count = ''.join(watch_count.split()[:-1])
-        return watch_count
 
     if site_name == 'rutube':
         watch_count = watch_count.replace(',', '')
-        return watch_count
 
     if site_name == 'pornhub':
         watch_count = ''.join(watch_count.split())
-        return watch_count
+
+    return watch_count
 
 
 def get_watchers_with_tag(response, site_name):
@@ -108,7 +105,6 @@ def create_browser(url):
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
     browser = webdriver.Chrome(options=options)
-
     browser.get(url)
     return browser
 
