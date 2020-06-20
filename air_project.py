@@ -14,6 +14,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 
 from bs4 import BeautifulSoup
 from requests.exceptions import Timeout, ConnectTimeout, HTTPError, RequestException
@@ -172,7 +173,7 @@ def parse_url(url):
             watchers_count = get_youtube_watchers(url)
 
     except (Timeout, ConnectTimeout, HTTPError,
-            RequestException, KeyError) as ex:
+            RequestException, KeyError, TimeoutException) as ex:
         print(f'{url} - {ex}')
         watchers_count = 'unavailable'
     except Exception as ex:
