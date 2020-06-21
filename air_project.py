@@ -22,11 +22,8 @@ from requests.exceptions import Timeout, ConnectTimeout, HTTPError, RequestExcep
 TABLE_URL = 'https://docs.google.com/spreadsheets/d/1UK-aoLDoJ724KGUN0AzgOLKW1S05W2FLZmSYHdjjYig/'
 
 FILES_PATH = Path('/home/dimk/Python/airflow_project')
-# UPLOADED_GSHEET_FILE = Path.joinpath(FILES_PATH, 'sheet.csv')
-UPLOADED_GSHEET_FILE = Path.joinpath(FILES_PATH, 'sheet copy.csv')
-
-# PARSED_DATA_SET_FILE = Path.joinpath(FILES_PATH, 'parsed.csv')
-PARSED_DATA_SET_FILE = Path.joinpath(FILES_PATH, 'parsed copy.csv')
+UPLOADED_GSHEET_FILE = Path.joinpath(FILES_PATH, 'sheet.csv')
+PARSED_DATA_SET_FILE = Path.joinpath(FILES_PATH, 'parsed.csv')
 
 
 PARSED_LOG = Path.joinpath(FILES_PATH, 'parsed.log')
@@ -255,7 +252,7 @@ def main():
     print('-------------------------')
 
     csv_file_name = UPLOADED_GSHEET_FILE
-    # write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
+    write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
     csv_parser()
     write_to_gsheet()
 
