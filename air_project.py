@@ -1,14 +1,14 @@
 import gspread
 import csv
-import time
+# import time
 import requests
 import re
 import json
 from datetime import datetime
 from pathlib import Path
-from bs4 import BeautifulSoup
-from random import randrange
-from collections import OrderedDict
+# from bs4 import BeautifulSoup
+# from random import randrange
+# from collections import OrderedDict
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -19,15 +19,31 @@ from selenium.common.exceptions import TimeoutException
 from bs4 import BeautifulSoup
 from requests.exceptions import Timeout, ConnectTimeout, HTTPError, RequestException
 
-TABLE_URL = 'https://docs.google.com/spreadsheets/d/1UK-aoLDoJ724KGUN0AzgOLKW1S05W2FLZmSYHdjjYig/'
+import secur.credentials as ENV
 
-FILES_PATH = Path('/home/dimk/Python/airflow_project')
-UPLOADED_GSHEET_FILE = Path.joinpath(FILES_PATH, 'sheet.csv')
-PARSED_DATA_SET_FILE = Path.joinpath(FILES_PATH, 'parsed.csv')
+# TABLE_URL = 'https://docs.google.com/spreadsheets/d/1UK-aoLDoJ724KGUN0AzgOLKW1S05W2FLZmSYHdjjYig/'
+#
+# # FILES_PATH = Path('/home/dimk/Python/airflow_project')
+# FILES_PATH = Path('/home/maxim/WORK/airflow101_project/')
+# UPLOADED_GSHEET_FILE = Path.joinpath(FILES_PATH, 'sheet.csv')
+#
+# PARSED_DATA_SET_FILE = Path.joinpath(FILES_PATH, 'parsed.csv')
+#
+#
+# PARSED_LOG = Path.joinpath(FILES_PATH, 'parsed.log')
+# GSHEET_KEY_FILE = Path.joinpath(FILES_PATH, 'key.json')
+
+TABLE_URL = ENV.TABLE_URL
+
+FILES_PATH = ENV.FILES_PATH
+UPLOADED_GSHEET_FILE = ENV.UPLOADED_GSHEET_FILE
 
 
-PARSED_LOG = Path.joinpath(FILES_PATH, 'parsed.log')
-GSHEET_KEY_FILE = Path.joinpath(FILES_PATH, 'key.json')
+PARSED_DATA_SET_FILE = ENV.PARSED_DATA_SET_FILE
+
+PARSED_LOG = ENV.PARSED_LOG
+GSHEET_KEY_FILE = ENV.GSHEET_KEY_FILE
+
 
 SITE_NAME_WITH_TAGS = {
     'habr': {'tag': 'span', 'class': 'post-stats__views-count'},
@@ -243,6 +259,63 @@ def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
     end_cell = f'D{loaded_csv_data[-1]["N"]}'
 
     sh.sheet1.update(f'{first_cell}:{end_cell}', watchers_list)
+
+
+# Reporting part
+
+
+def bot_message(message_text: str, **kwargs) -> None:
+    response = requests.post(
+        url=f'https://api.telegram.org/bot{ENV.TG_BOT_TOKEN}/sendMessage',
+        data={'chat_id': ENV.TG_BOT_CHAT_ID, 'text': message_text}
+    ).json()
+    print(response)
+
+
+def get_report(parsed_file_name: str) -> dict:
+    report_dict = {
+        'rows_success_count': 0,
+        'rows_failed_count': 0,
+        'rows_failed_detail': [],
+    }
+
+    with open(parsed_file_name) as file_obj:
+        reader = csv.DictReader(file_obj, delimiter=',')
+
+        for line in reader:
+            row_number = line['N']
+            url = line['url']
+            watchers_count = line['watchers_count'].strip()
+
+            if re.match(r'([0-9]+)(.?)([0-9]?[k]?)$', watchers_count):
+                report_dict['rows_success_count'] += 1
+            else:
+                report_dict['rows_failed_count'] += 1
+                report_dict['rows_failed_detail'].append([row_number, url])
+    return report_dict
+
+
+def render_and_send_report(parsed_file_name: str) -> None:
+    report = get_report(parsed_file_name=parsed_file_name)
+    report_str = f"rows_success_count: {report['rows_success_count']};\nrows_failed_count: \
+        {report['rows_failed_count']};\n\nFailed details:\n"
+
+    for failed_row in report['rows_failed_detail']:
+        report_str += f'{failed_row[0]}: {failed_row[1]} \n'
+
+    # print(report_str)
+
+    report_message_lines = report_str.split('\n')
+    message_part = ''
+    n = 0
+    for line in report_message_lines:
+        n += 1
+        message_part += line + '\n'
+        if n >= 50:
+            bot_message(message_text=message_part)
+            n = 0
+            message_part = ''
+    bot_message(message_text=message_part)  # last part
 
 
 def main():
