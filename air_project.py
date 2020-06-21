@@ -23,7 +23,10 @@ TABLE_URL = 'https://docs.google.com/spreadsheets/d/1UK-aoLDoJ724KGUN0AzgOLKW1S0
 
 FILES_PATH = Path('/home/dimk/Python/airflow_project')
 UPLOADED_GSHEET_FILE = Path.joinpath(FILES_PATH, 'sheet.csv')
+
 PARSED_DATA_SET_FILE = Path.joinpath(FILES_PATH, 'parsed.csv')
+
+
 PARSED_LOG = Path.joinpath(FILES_PATH, 'parsed.log')
 GSHEET_KEY_FILE = Path.joinpath(FILES_PATH, 'key.json')
 
@@ -83,7 +86,8 @@ def remove_unnecessary(watch_count, site_name):
 
     if site_name == 'pornhub':
         watch_count = ''.join(watch_count.split())
-
+    if not watch_count:
+        watch_count = ''
     return watch_count
 
 
@@ -117,8 +121,7 @@ def get_pikabu_watchers(url):
     browser.quit()
     soup = BeautifulSoup(generated_html, 'html.parser')
     watchers_tag = soup.find('div', attrs={"class": 'story__views hint'})
-    if not watchers_tag:
-        return 'unavailable'
+
     watchers_count = ''.join(watchers_tag['aria-label'].split()[:-1])
     return watchers_count
 
@@ -213,6 +216,10 @@ def csv_parser(uploaded_sheet_file=UPLOADED_GSHEET_FILE,
                 continue
 
         watchers_count, parsed_date = parse_url(uploaded_row['url'])
+
+        if not watchers_count:
+            watchers_count = 'unavailable'
+
         loaded_csv_data[row_number]['watchers_count'] = watchers_count
         loaded_csv_data[row_number]['parsed_date'] = parsed_date
         loaded_csv_data[row_number]['rechecked'] = True
