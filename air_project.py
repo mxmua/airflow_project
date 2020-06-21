@@ -225,9 +225,7 @@ def csv_parser(uploaded_sheet_file=UPLOADED_GSHEET_FILE,
         loaded_csv_data[row_number]['rechecked'] = True
 
         # time.sleep(randrange(1, 4))
-    write_dictlist_to_csv(loaded_csv_data, PARSED_DATA_SET_FILE)
-
-    # write_dictlist_to_csv(loaded_csv_data, PARSED_DATA_SET_FILE)
+        write_dictlist_to_csv(loaded_csv_data, PARSED_DATA_SET_FILE)
 
 
 def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
