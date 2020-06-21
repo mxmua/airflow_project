@@ -38,6 +38,7 @@ TABLE_URL = ENV.TABLE_URL
 FILES_PATH = ENV.FILES_PATH
 UPLOADED_GSHEET_FILE = ENV.UPLOADED_GSHEET_FILE
 
+
 PARSED_DATA_SET_FILE = ENV.PARSED_DATA_SET_FILE
 
 PARSED_LOG = ENV.PARSED_LOG
@@ -196,6 +197,10 @@ def parse_url(url):
     except Exception as ex:
         print(f'{url} - {ex}')
         watchers_count = 'unavailable'
+
+    if watchers_count in (None, ''):
+        watchers_count = 'unavailable'
+
     return watchers_count, int(
         datetime.now().timestamp())
 
@@ -230,9 +235,6 @@ def csv_parser(uploaded_sheet_file=UPLOADED_GSHEET_FILE,
                 continue
 
         watchers_count, parsed_date = parse_url(uploaded_row['url'])
-
-        if not watchers_count:
-            watchers_count = 'unavailable'
 
         loaded_csv_data[row_number]['watchers_count'] = watchers_count
         loaded_csv_data[row_number]['parsed_date'] = parsed_date
