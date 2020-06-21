@@ -22,9 +22,11 @@ from requests.exceptions import Timeout, ConnectTimeout, HTTPError, RequestExcep
 TABLE_URL = 'https://docs.google.com/spreadsheets/d/1UK-aoLDoJ724KGUN0AzgOLKW1S05W2FLZmSYHdjjYig/'
 
 FILES_PATH = Path('/home/dimk/Python/airflow_project')
-UPLOADED_GSHEET_FILE = Path.joinpath(FILES_PATH, 'sheet.csv')
+# UPLOADED_GSHEET_FILE = Path.joinpath(FILES_PATH, 'sheet.csv')
+UPLOADED_GSHEET_FILE = Path.joinpath(FILES_PATH, 'sheet copy.csv')
 
-PARSED_DATA_SET_FILE = Path.joinpath(FILES_PATH, 'parsed.csv')
+# PARSED_DATA_SET_FILE = Path.joinpath(FILES_PATH, 'parsed.csv')
+PARSED_DATA_SET_FILE = Path.joinpath(FILES_PATH, 'parsed copy.csv')
 
 
 PARSED_LOG = Path.joinpath(FILES_PATH, 'parsed.log')
@@ -182,6 +184,10 @@ def parse_url(url):
     except Exception as ex:
         print(f'{url} - {ex}')
         watchers_count = 'unavailable'
+
+    if watchers_count in (None, ''):
+        watchers_count = 'unavailable'
+
     return watchers_count, int(
         datetime.now().timestamp())
 
@@ -217,9 +223,6 @@ def csv_parser(uploaded_sheet_file=UPLOADED_GSHEET_FILE,
 
         watchers_count, parsed_date = parse_url(uploaded_row['url'])
 
-        if not watchers_count:
-            watchers_count = 'unavailable'
-
         loaded_csv_data[row_number]['watchers_count'] = watchers_count
         loaded_csv_data[row_number]['parsed_date'] = parsed_date
         loaded_csv_data[row_number]['rechecked'] = True
@@ -252,7 +255,7 @@ def main():
     print('-------------------------')
 
     csv_file_name = UPLOADED_GSHEET_FILE
-    write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
+    # write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
     csv_parser()
     write_to_gsheet()
 
