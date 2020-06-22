@@ -1,15 +1,11 @@
 import gspread
 import csv
-# import time
 import requests
 import re
 import json
 from datetime import datetime
 from pathlib import Path
-# from bs4 import BeautifulSoup
-# from random import randrange
-# from collections import OrderedDict
-
+import numpy as np
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -21,17 +17,6 @@ from requests.exceptions import Timeout, ConnectTimeout, HTTPError, RequestExcep
 
 import secur.credentials as ENV
 
-# TABLE_URL = 'https://docs.google.com/spreadsheets/d/1UK-aoLDoJ724KGUN0AzgOLKW1S05W2FLZmSYHdjjYig/'
-#
-# # FILES_PATH = Path('/home/dimk/Python/airflow_project')
-# FILES_PATH = Path('/home/maxim/WORK/airflow101_project/')
-# UPLOADED_GSHEET_FILE = Path.joinpath(FILES_PATH, 'sheet.csv')
-#
-# PARSED_DATA_SET_FILE = Path.joinpath(FILES_PATH, 'parsed.csv')
-#
-#
-# PARSED_LOG = Path.joinpath(FILES_PATH, 'parsed.log')
-# GSHEET_KEY_FILE = Path.joinpath(FILES_PATH, 'key.json')
 
 TABLE_URL = ENV.TABLE_URL
 
@@ -44,6 +29,7 @@ PARSED_DATA_SET_FILE = ENV.PARSED_DATA_SET_FILE
 PARSED_LOG = ENV.PARSED_LOG
 GSHEET_KEY_FILE = ENV.GSHEET_KEY_FILE
 
+PARTS_NUMBER = 4
 
 SITE_NAME_WITH_TAGS = {
     'habr': {'tag': 'span', 'class': 'post-stats__views-count'},
@@ -54,7 +40,8 @@ SITE_NAME_WITH_TAGS = {
 
 
 def write_list_to_csv(table_headers, data_list,
-                      file_name, add_number_row=True):
+                      file_name, start_line=3, add_number_row=True
+                      ):
     with open(file_name, 'w+',  newline="", encoding='utf-8') as file:
         if add_number_row:
             table_headers.insert(0, 'N')
@@ -64,7 +51,7 @@ def write_list_to_csv(table_headers, data_list,
             if not isinstance(row, list):
                 row = [row]
             if add_number_row:
-                row.insert(0, row_number + 3)
+                row.insert(0, row_number + start_line)
             write.writerow(row)
 
 
@@ -77,11 +64,21 @@ def write_dictlist_to_csv(data_list,
         writer.writerows(data_list)
 
 
+def add_number_to_filename(file_name, number):
+    path = Path(file_name)
+    return Path.joinpath(
+        path.parent, f'{number}_{path.name}')
+
+
 def get_url_from_gsheet(table_url: str,
-                        auth_json_file=GSHEET_KEY_FILE):
+                        auth_json_file=GSHEET_KEY_FILE,
+                        parts=PARTS_NUMBER):
     gc = gspread.service_account(filename=auth_json_file)
     sh = gc.open_by_url(table_url)
-    return sh.sheet1.col_values(1)[2:]
+    all_values = sh.sheet1.col_values(1)[2:]
+    parted = np.array_split(all_values, parts)
+    return parted
+    # return sh.sheet1.col_values(1)[2:]
 
 
 def remove_unnecessary(watch_count, site_name):
@@ -218,10 +215,17 @@ def is_row_fresh(uploaded_row,
 
 
 def csv_parser(uploaded_sheet_file=UPLOADED_GSHEET_FILE,
-               parsed_file_name=PARSED_DATA_SET_FILE):
+               parsed_file_name=PARSED_DATA_SET_FILE,
+               part_number=PARTS_NUMBER):
+
+    parsed_file_name = add_number_to_filename(
+        parsed_file_name, part_number)
+    uploaded_sheet_file = add_number_to_filename(
+        uploaded_sheet_file, part_number)
+
     loaded_csv_data = csv_dict_reader(uploaded_sheet_file, 'N')
     # first load
-    is_first = not Path(PARSED_DATA_SET_FILE).exists()
+    is_first = not Path(parsed_file_name).exists()
     if not is_first:
         parsed_data = csv_dict_reader(parsed_file_name, 'N')
 
@@ -241,23 +245,30 @@ def csv_parser(uploaded_sheet_file=UPLOADED_GSHEET_FILE,
         loaded_csv_data[row_number]['rechecked'] = True
 
         # time.sleep(randrange(1, 4))
-        write_dictlist_to_csv(loaded_csv_data, PARSED_DATA_SET_FILE)
+        write_dictlist_to_csv(loaded_csv_data, parsed_file_name)
 
 
 def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
                     auth_json_file=GSHEET_KEY_FILE,
-                    table_url=TABLE_URL):
+                    table_url=TABLE_URL,
+                    parts=PARTS_NUMBER):
 
     gc = gspread.service_account(filename=auth_json_file)
     sh = gc.open_by_url(table_url)
-    loaded_csv_data = csv_dict_reader(parsed_file_name, 'N')
+    loaded_csv_data = []
+
+    for part_number in range(parts):
+        part_file_name = add_number_to_filename(
+            parsed_file_name, part_number + 1)
+        loaded_csv_data = loaded_csv_data + \
+            csv_dict_reader(part_file_name, 'N')
     watchers_list = []
+    write_dictlist_to_csv(loaded_csv_data, parsed_file_name)
     for row in loaded_csv_data:
         watchers_list.append([row['watchers_count']])
 
     first_cell = f'D{loaded_csv_data[0]["N"]}'
     end_cell = f'D{loaded_csv_data[-1]["N"]}'
-
     sh.sheet1.update(f'{first_cell}:{end_cell}', watchers_list)
 
 
@@ -318,6 +329,20 @@ def render_and_send_report(parsed_file_name: str) -> None:
     bot_message(message_text=message_part)  # last part
 
 
+def write_gheet_data_with_parts(parted_lists,
+                                parts=PARTS_NUMBER,
+                                parent_file_name=UPLOADED_GSHEET_FILE):
+    start_line = 3
+    for part_number, parted_list in enumerate(parted_lists):
+        part_file_name = add_number_to_filename(
+            parent_file_name, part_number+1)
+
+        write_list_to_csv(['url'],
+                          parted_list,
+                          part_file_name, start_line=start_line)
+        start_line = start_line + len(parted_list)
+
+
 def main():
     start_time = datetime.now()
     print('-------------------------')
@@ -325,9 +350,12 @@ def main():
     print('-------------------------')
 
     csv_file_name = UPLOADED_GSHEET_FILE
-    write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
-    csv_parser()
-    write_to_gsheet()
+    write_gheet_data_with_parts(get_url_from_gsheet(TABLE_URL))
+    # write_list_to_csv(['url'],
+    #                   get_url_from_gsheet(TABLE_URL),
+    #                   csv_file_name)
+    # csv_parser(part_number=4)
+    write_to_gsheet(parts=PARTS_NUMBER)
 
     print('-------------------------')
     print(datetime.now() - start_time)
