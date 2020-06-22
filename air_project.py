@@ -246,6 +246,7 @@ def csv_parser(uploaded_sheet_file=UPLOADED_GSHEET_FILE,
 
         # time.sleep(randrange(1, 4))
         write_dictlist_to_csv(loaded_csv_data, parsed_file_name)
+    write_dictlist_to_csv(loaded_csv_data, parsed_file_name)
 
 
 def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
