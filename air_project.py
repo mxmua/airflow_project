@@ -161,11 +161,11 @@ def get_response(url: str, allow_redirects=True):
 
 
 def csv_dict_reader(file_name: str, key_field):
-    result_table = []
+    result_table = {}
     with open(file_name) as file_obj:
         reader = csv.DictReader(file_obj, delimiter=',')
         for line in reader:
-            result_table.append(line)
+            result_table[line[key_field]] = line
     return result_table
 
 
@@ -218,35 +218,37 @@ def csv_parser(uploaded_sheet_file=UPLOADED_GSHEET_FILE,
                parsed_file_name=PARSED_DATA_SET_FILE,
                part_number=PARTS_NUMBER):
 
-    parsed_file_name = add_number_to_filename(
+    parsed_parted_file_name = add_number_to_filename(
         parsed_file_name, part_number)
     uploaded_sheet_file = add_number_to_filename(
         uploaded_sheet_file, part_number)
 
     loaded_csv_data = csv_dict_reader(uploaded_sheet_file, 'N')
     # first load
+    parsed_part = {}
     is_first = not Path(parsed_file_name).exists()
     if not is_first:
         parsed_data = csv_dict_reader(parsed_file_name, 'N')
 
-    for row_number, uploaded_row in enumerate(loaded_csv_data):
-        if not is_first:
-            parsed_row_from_file = parsed_data[row_number]
-            if is_row_fresh(uploaded_row, parsed_row_from_file):
-                loaded_csv_data[row_number]['watchers_count'] = parsed_row_from_file['watchers_count']
-                loaded_csv_data[row_number]['parsed_date'] = parsed_row_from_file['parsed_date']
-                loaded_csv_data[row_number]['rechecked'] = False
-                continue
+    for uploaded_row_number in loaded_csv_data:
+        # if not is_first:
+        #     parsed_row_from_file = parsed_data[row_number]
+        #     if is_row_fresh(uploaded_row, parsed_row_from_file):
+        #         loaded_csv_data[row_number]['watchers_count'] = parsed_row_from_file['watchers_count']
+        #         loaded_csv_data[row_number]['parsed_date'] = parsed_row_from_file['parsed_date']
+        #         loaded_csv_data[row_number]['rechecked'] = False
+        #         continue
 
-        watchers_count, parsed_date = parse_url(uploaded_row['url'])
+        watchers_count, parsed_date = parse_url(
+            loaded_csv_data[uploaded_row_number]['url'])
 
-        loaded_csv_data[row_number]['watchers_count'] = watchers_count
-        loaded_csv_data[row_number]['parsed_date'] = parsed_date
-        loaded_csv_data[row_number]['rechecked'] = True
+        parsed_part[uploaded_row_number] = {'watchers_count': watchers_count,
+                                            'parsed_date': parsed_date,
+                                            'rechecked': True}
 
         # time.sleep(randrange(1, 4))
-        write_dictlist_to_csv(loaded_csv_data, parsed_file_name)
-    write_dictlist_to_csv(loaded_csv_data, parsed_file_name)
+        write_dictlist_to_csv(loaded_csv_data, parsed_parted_file_name)
+    write_dictlist_to_csv(loaded_csv_data, parsed_parted_file_name)
 
 
 def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
