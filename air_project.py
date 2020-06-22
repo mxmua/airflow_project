@@ -269,7 +269,7 @@ def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
 
     first_cell = f'D{loaded_csv_data[0]["N"]}'
     end_cell = f'D{loaded_csv_data[-1]["N"]}'
-    sh.sheet1.update(f'{first_cell}:{end_cell}', watchers_list)
+    # sh.sheet1.update(f'{first_cell}:{end_cell}', watchers_list)
 
 
 # Reporting part
@@ -354,7 +354,7 @@ def main():
     # write_list_to_csv(['url'],
     #                   get_url_from_gsheet(TABLE_URL),
     #                   csv_file_name)
-    # csv_parser(part_number=4)
+    csv_parser(part_number=1)
     write_to_gsheet(parts=PARTS_NUMBER)
 
     print('-------------------------')

@@ -37,12 +37,12 @@ def sla_miss_action(*args, **kwargs):
 #         libs.get_url_from_gsheet(table_url=gsheet_url, auth_json_file=ENV.GSHEET_KEY_FILE), stage_filename)
 
 def load_links_from_gsheet(gsheet_url: str, stage_filename: str) -> None:
-    gsheet_uls = libs.get_url_from_gsheet(table_url=gsheet_url,
-                                          auth_json_file=ENV.GSHEET_KEY_FILE,
-                                          parts=PARTS_NUMBER)
+    gsheet_urls = libs.get_url_from_gsheet(table_url=gsheet_url,
+                                           auth_json_file=ENV.GSHEET_KEY_FILE,
+                                           parts=PARTS_NUMBER)
 
     libs.write_gheet_data_with_parts(
-        gsheet_uls, parts=PARTS_NUMBER, parent_file_name=stage_filename)
+        gsheet_urls, parts=PARTS_NUMBER, parent_file_name=stage_filename)
     # libs.write_list_to_csv(['url'],
     #                        libs.get_url_from_gsheet(table_url=gsheet_url, auth_json_file=ENV.GSHEET_KEY_FILE), stage_filename)
 
@@ -96,6 +96,7 @@ with DAG(dag_id='air101_project_with_parts',
 
     send_report = PythonOperator(
         task_id='send_report',
+        trigger_rule='all_done',
         python_callable=libs.render_and_send_report,
         op_kwargs={'parsed_file_name': ENV.PARSED_DATA_SET_FILE},
     )
