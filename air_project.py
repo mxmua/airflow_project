@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 import numpy as np
+from os import remove
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -76,6 +77,10 @@ def get_url_from_gsheet(table_url: str,
     gc = gspread.service_account(filename=auth_json_file)
     sh = gc.open_by_url(table_url)
     all_values = sh.sheet1.col_values(1)[2:]
+
+    # worksheet = sh.worksheet("Лист5")
+    # all_values = worksheet.col_values(1)[2:]
+
     parted = np.array_split(all_values, parts)
     return parted
     # return sh.sheet1.col_values(1)[2:]
@@ -225,30 +230,31 @@ def csv_parser(uploaded_sheet_file=UPLOADED_GSHEET_FILE,
 
     loaded_csv_data = csv_dict_reader(uploaded_sheet_file, 'N')
     # first load
-    parsed_part = {}
+    parsed_part = []
     is_first = not Path(parsed_file_name).exists()
     if not is_first:
         parsed_data = csv_dict_reader(parsed_file_name, 'N')
 
     for uploaded_row_number in loaded_csv_data:
-        # if not is_first:
-        #     parsed_row_from_file = parsed_data[row_number]
-        #     if is_row_fresh(uploaded_row, parsed_row_from_file):
-        #         loaded_csv_data[row_number]['watchers_count'] = parsed_row_from_file['watchers_count']
-        #         loaded_csv_data[row_number]['parsed_date'] = parsed_row_from_file['parsed_date']
-        #         loaded_csv_data[row_number]['rechecked'] = False
-        #         continue
+        if not is_first and uploaded_row_number in parsed_data:
+            parsed_row = parsed_data[uploaded_row_number]
+            if is_row_fresh(loaded_csv_data[uploaded_row_number], parsed_row):
+                loaded_csv_data[uploaded_row_number]['watchers_count'] = parsed_row['watchers_count']
+                loaded_csv_data[uploaded_row_number]['parsed_date'] = parsed_row['parsed_date']
+                loaded_csv_data[uploaded_row_number]['rechecked'] = False
+                parsed_part.append(loaded_csv_data[uploaded_row_number])
+                continue
 
         watchers_count, parsed_date = parse_url(
             loaded_csv_data[uploaded_row_number]['url'])
-
-        parsed_part[uploaded_row_number] = {'watchers_count': watchers_count,
-                                            'parsed_date': parsed_date,
-                                            'rechecked': True}
+        loaded_csv_data[uploaded_row_number]['watchers_count'] = watchers_count
+        loaded_csv_data[uploaded_row_number]['parsed_date'] = parsed_date
+        loaded_csv_data[uploaded_row_number]['rechecked'] = True
+        parsed_part.append(loaded_csv_data[uploaded_row_number])
 
         # time.sleep(randrange(1, 4))
-        write_dictlist_to_csv(loaded_csv_data, parsed_parted_file_name)
-    write_dictlist_to_csv(loaded_csv_data, parsed_parted_file_name)
+        write_dictlist_to_csv(parsed_part, parsed_parted_file_name)
+    write_dictlist_to_csv(parsed_part, parsed_parted_file_name)
 
 
 def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
@@ -256,23 +262,34 @@ def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
                     table_url=TABLE_URL,
                     parts=PARTS_NUMBER):
 
-    gc = gspread.service_account(filename=auth_json_file)
-    sh = gc.open_by_url(table_url)
-    loaded_csv_data = []
+    loaded_csv_data = {}
 
     for part_number in range(parts):
         part_file_name = add_number_to_filename(
             parsed_file_name, part_number + 1)
-        loaded_csv_data = loaded_csv_data + \
-            csv_dict_reader(part_file_name, 'N')
+        part_data = csv_dict_reader(part_file_name, 'N')
+        loaded_csv_data.update(part_data)
+        remove(part_file_name)
+    final_data_set = []
     watchers_list = []
-    write_dictlist_to_csv(loaded_csv_data, parsed_file_name)
-    for row in loaded_csv_data:
-        watchers_list.append([row['watchers_count']])
+    for row_number in loaded_csv_data:
+        final_data_set.append(loaded_csv_data[row_number])
+        watchers_list.append([loaded_csv_data[row_number]['watchers_count']])
 
-    first_cell = f'D{loaded_csv_data[0]["N"]}'
-    end_cell = f'D{loaded_csv_data[-1]["N"]}'
-    # sh.sheet1.update(f'{first_cell}:{end_cell}', watchers_list)
+    write_dictlist_to_csv(final_data_set, parsed_file_name)
+
+    first_cell = f'D{final_data_set[0]["N"]}'
+    end_cell = f'D{final_data_set[-1]["N"]}'
+
+    gc = gspread.service_account(filename=auth_json_file)
+    sh = gc.open_by_url(table_url)
+
+    all_values = sh.sheet1.col_values(1)[2:]
+    empty_list = [[''] for i in range(len(all_values))]
+    # sh.worksheet("Лист5").update(f'D3:D{len(all_values)+3}', empty_list)
+    # sh.worksheet("Лист5").update(f'{first_cell}:{end_cell}', watchers_list)
+    sh.sheet1.update(f'D3:D{len(all_values)+3}', empty_list)
+    sh.sheet1.update(f'{first_cell}:{end_cell}', watchers_list)
 
 
 # Reporting part
@@ -354,10 +371,8 @@ def main():
 
     csv_file_name = UPLOADED_GSHEET_FILE
     write_gheet_data_with_parts(get_url_from_gsheet(TABLE_URL))
-    # write_list_to_csv(['url'],
-    #                   get_url_from_gsheet(TABLE_URL),
-    #                   csv_file_name)
-    csv_parser(part_number=1)
+    for i in range(PARTS_NUMBER):
+        csv_parser(part_number=i+1)
     write_to_gsheet(parts=PARTS_NUMBER)
 
     print('-------------------------')
