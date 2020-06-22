@@ -55,7 +55,7 @@ def parse_links_watchers(stage_filename: str, result_filename: str,
 
 with DAG(dag_id='air101_project_with_parts',
          default_args=args,
-         schedule_interval=timedelta(days=1),
+         schedule_interval=timedelta(days=2),
          sla_miss_callback=sla_miss_action,
          on_failure_callback=on_failure_action,
          ) as dag:
