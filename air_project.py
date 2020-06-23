@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 from requests.exceptions import Timeout, ConnectTimeout, HTTPError, RequestException
 
 import secur.credentials as ENV
+import air_project_statsd as stat
 
 
 TABLE_URL = ENV.TABLE_URL
@@ -343,6 +344,14 @@ Failed: {report['rows_failed_count']}\n\nFailed details:\n"""
 
     bot_message(message_text=first_str)
     bot_send_file(ENV.ERRORS_FILE)
+
+    sc_client = stat.ProjStatsdClient(host='metrics.python-jitsu.club', port='8125')
+    sc_client.flat_value(context='urls_parsed_total', value=report['rows_success_count']+report['rows_failed_count'])
+    sc_client.flat_value(context='urls_parsed_successful', value=report['rows_success_count'])
+    sc_client.flat_value(context='urls_parsed_failed', value=report['rows_failed_count'])
+
+
+
 
 
 def write_gheet_data_with_parts(parted_lists,
