@@ -303,32 +303,32 @@ def bot_message(message_text: str, **kwargs) -> None:
 
 
 def get_report(parsed_file_name: str) -> dict:
+
+    data_from_file = csv_dict_reader(parsed_file_name, 'N')
+    loaded_csv_data = [[row, data_from_file[row]['url'],
+                        data_from_file[row]['watchers_count']] for row in
+                       data_from_file if data_from_file[row]['rechecked'] == 'True']
+
+    failed = [[row[0], row[1]]
+              for row in loaded_csv_data if row[2] == 'unavailable']
+
+    successful_count = len(loaded_csv_data)-len(failed)
+
     report_dict = {
-        'rows_success_count': 0,
-        'rows_failed_count': 0,
-        'rows_failed_detail': [],
+        'rows_success_count': successful_count,
+        'rows_failed_count': len(failed),
+        'rows_failed_detail': failed,
     }
-
-    with open(parsed_file_name) as file_obj:
-        reader = csv.DictReader(file_obj, delimiter=',')
-
-        for line in reader:
-            row_number = line['N']
-            url = line['url']
-            watchers_count = line['watchers_count'].strip()
-
-            if re.match(r'([0-9]+)(.?)([0-9]?[k]?)$', watchers_count):
-                report_dict['rows_success_count'] += 1
-            else:
-                report_dict['rows_failed_count'] += 1
-                report_dict['rows_failed_detail'].append([row_number, url])
     return report_dict
 
 
 def render_and_send_report(parsed_file_name: str) -> None:
     report = get_report(parsed_file_name=parsed_file_name)
-    report_str = f"rows_success_count: {report['rows_success_count']};\nrows_failed_count: \
-        {report['rows_failed_count']};\n\nFailed details:\n"
+    report_str = f"""Last check report:
+Total checked: {report['rows_success_count']+report['rows_failed_count']}
+
+Successful: {report['rows_success_count']}
+Failed: {report['rows_failed_count']}\n\nFailed details:\n"""
 
     for failed_row in report['rows_failed_detail']:
         report_str += f'{failed_row[0]}: {failed_row[1]} \n'
@@ -369,13 +369,15 @@ def main():
     print(start_time)
     print('-------------------------')
 
-    write_gheet_data_with_parts(get_url_from_gsheet(TABLE_URL))
+    # write_gheet_data_with_parts(get_url_from_gsheet(TABLE_URL))
 
-    for i in range(PARTS_NUMBER):
-        csv_parser(part_number=i+1)
+    # for i in range(PARTS_NUMBER):
+    #     csv_parser(part_number=i+1)
 
-    write_to_gsheet(parts=PARTS_NUMBER)
+    # write_to_gsheet(parts=PARTS_NUMBER)
+    get_report(parsed_file_name=PARSED_DATA_SET_FILE)
 
+    render_and_send_report(parsed_file_name=PARSED_DATA_SET_FILE)
     print('-------------------------')
     print(datetime.now() - start_time)
     print('-------------------------')
