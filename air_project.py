@@ -302,6 +302,15 @@ def bot_message(message_text: str, **kwargs) -> None:
     print(response)
 
 
+def bot_send_file(file_name: str, **kwargs) -> None:
+    with open(file_name, 'rb') as file:
+        post_data = {'chat_id': ENV.TG_BOT_CHAT_ID}
+        post_file = {'document': file}
+        r = requests.post(
+            f'https://api.telegram.org/bot{ENV.TG_BOT_TOKEN}/sendDocument',
+            data=post_data, files=post_file)
+
+
 def get_report(parsed_file_name: str) -> dict:
 
     data_from_file = csv_dict_reader(parsed_file_name, 'N')
@@ -333,15 +342,20 @@ Failed: {report['rows_failed_count']}\n\nFailed details:\n"""
 
     errors_string = '\n'.join(['. '.join(row)
                                for row in report['rows_failed_detail']])
-    all_string = (first_str + errors_string).split('\n')
+    with open(ENV.ERRORS_FILE, 'w+',  newline="", encoding='utf-8') as file:
+        file.write(errors_string)
 
-    messages = [all_string[lines:lines+max_string_per_message]
-                for lines in range(0, len(all_string), max_string_per_message)]
+    bot_message(message_text=first_str)
+    bot_send_file(ENV.ERRORS_FILE)
+    # all_string = (first_str + errors_string).split('\n')
 
-    for message in messages:
-        message_test = '\n'.join(message)
-        bot_message(message_text=message_test)
+    # bot_send_file('errors.txt')
+    # messages = [all_string[lines:lines+max_string_per_message]
+    #             for lines in range(0, len(all_string), max_string_per_message)]
 
+    # for message in messages:
+    #     message_test = '\n'.join(message)
+    #     bot_message(message_text=message_test)
     # print(report_str)
 
     # report_message_lines = report_str.split('\n')
@@ -384,12 +398,12 @@ def main():
     #     csv_parser(part_number=i+1)
 
     # write_to_gsheet(parts=PARTS_NUMBER)
-    get_report(parsed_file_name=PARSED_DATA_SET_FILE)
+    # get_report(parsed_file_name=PARSED_DATA_SET_FILE)
 
     render_and_send_report(parsed_file_name=PARSED_DATA_SET_FILE)
-    print('-------------------------')
-    print(datetime.now() - start_time)
-    print('-------------------------')
+    # print('-------------------------')
+    # print(datetime.now() - start_time)
+    # print('-------------------------')
 
 
 if __name__ == '__main__':
