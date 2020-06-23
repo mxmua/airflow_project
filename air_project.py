@@ -77,13 +77,11 @@ def get_url_from_gsheet(table_url: str,
     gc = gspread.service_account(filename=auth_json_file)
     sh = gc.open_by_url(table_url)
     all_values = sh.sheet1.col_values(1)[2:]
-
     # worksheet = sh.worksheet("Лист5")
     # all_values = worksheet.col_values(1)[2:]
 
     parted = np.array_split(all_values, parts)
     return parted
-    # return sh.sheet1.col_values(1)[2:]
 
 
 def remove_unnecessary(watch_count, site_name):
@@ -123,7 +121,6 @@ def get_watchers_with_tag(response, site_name):
 
 def create_browser(url):
     # sudo apt install chromium-chromedriver
-
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
     browser = webdriver.Chrome(options=options)
@@ -239,8 +236,10 @@ def csv_parser(uploaded_sheet_file=UPLOADED_GSHEET_FILE,
         if not is_first and uploaded_row_number in parsed_data:
             parsed_row = parsed_data[uploaded_row_number]
             if is_row_fresh(loaded_csv_data[uploaded_row_number], parsed_row):
-                loaded_csv_data[uploaded_row_number]['watchers_count'] = parsed_row['watchers_count']
-                loaded_csv_data[uploaded_row_number]['parsed_date'] = parsed_row['parsed_date']
+                loaded_csv_data[uploaded_row_number]['watchers_count'] = \
+                    parsed_row['watchers_count']
+                loaded_csv_data[uploaded_row_number]['parsed_date'] = \
+                    parsed_row['parsed_date']
                 loaded_csv_data[uploaded_row_number]['rechecked'] = False
                 parsed_part.append(loaded_csv_data[uploaded_row_number])
                 continue
@@ -284,7 +283,7 @@ def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
     gc = gspread.service_account(filename=auth_json_file)
     sh = gc.open_by_url(table_url)
 
-    all_values = sh.sheet1.col_values(1)[2:]
+    all_values = sh.sheet1.col_values(4)[2:]
     empty_list = [[''] for i in range(len(all_values))]
     # sh.worksheet("Лист5").update(f'D3:D{len(all_values)+3}', empty_list)
     # sh.worksheet("Лист5").update(f'{first_cell}:{end_cell}', watchers_list)
@@ -364,15 +363,17 @@ def write_gheet_data_with_parts(parted_lists,
 
 
 def main():
+    # testing part
     start_time = datetime.now()
     print('-------------------------')
     print(start_time)
     print('-------------------------')
 
-    csv_file_name = UPLOADED_GSHEET_FILE
     write_gheet_data_with_parts(get_url_from_gsheet(TABLE_URL))
+
     for i in range(PARTS_NUMBER):
         csv_parser(part_number=i+1)
+
     write_to_gsheet(parts=PARTS_NUMBER)
 
     print('-------------------------')
