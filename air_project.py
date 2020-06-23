@@ -77,9 +77,6 @@ def get_url_from_gsheet(table_url: str,
     gc = gspread.service_account(filename=auth_json_file)
     sh = gc.open_by_url(table_url)
     all_values = sh.sheet1.col_values(1)[2:]
-    # worksheet = sh.worksheet("Лист5")
-    # all_values = worksheet.col_values(1)[2:]
-
     parted = np.array_split(all_values, parts)
     return parted
 
@@ -285,8 +282,6 @@ def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
 
     all_values = sh.sheet1.col_values(4)[2:]
     empty_list = [[''] for i in range(len(all_values))]
-    # sh.worksheet("Лист5").update(f'D3:D{len(all_values)+3}', empty_list)
-    # sh.worksheet("Лист5").update(f'{first_cell}:{end_cell}', watchers_list)
     sh.sheet1.update(f'D3:D{len(all_values)+3}', empty_list)
     sh.sheet1.update(f'{first_cell}:{end_cell}', watchers_list)
 
@@ -306,9 +301,10 @@ def bot_send_file(file_name: str, **kwargs) -> None:
     with open(file_name, 'rb') as file:
         post_data = {'chat_id': ENV.TG_BOT_CHAT_ID}
         post_file = {'document': file}
-        r = requests.post(
+        response = requests.post(
             f'https://api.telegram.org/bot{ENV.TG_BOT_TOKEN}/sendDocument',
             data=post_data, files=post_file)
+        print(response.json())
 
 
 def get_report(parsed_file_name: str) -> dict:
@@ -338,7 +334,7 @@ Total checked: {report['rows_success_count']+report['rows_failed_count']}
 
 Successful: {report['rows_success_count']}
 Failed: {report['rows_failed_count']}\n\nFailed details:\n"""
-    max_string_per_message = 45
+    # max_string_per_message = 45
 
     errors_string = '\n'.join(['. '.join(row)
                                for row in report['rows_failed_detail']])
@@ -347,28 +343,6 @@ Failed: {report['rows_failed_count']}\n\nFailed details:\n"""
 
     bot_message(message_text=first_str)
     bot_send_file(ENV.ERRORS_FILE)
-    # all_string = (first_str + errors_string).split('\n')
-
-    # bot_send_file('errors.txt')
-    # messages = [all_string[lines:lines+max_string_per_message]
-    #             for lines in range(0, len(all_string), max_string_per_message)]
-
-    # for message in messages:
-    #     message_test = '\n'.join(message)
-    #     bot_message(message_text=message_test)
-    # print(report_str)
-
-    # report_message_lines = report_str.split('\n')
-    # message_part = ''
-    # n = 0
-    # for line in report_message_lines:
-    #     n += 1
-    #     message_part += line + '\n'
-    #     if n >= 50:
-    #         bot_message(message_text=message_part)
-    #         n = 0
-    #         message_part = ''
-    # bot_message(message_text=message_part)  # last part
 
 
 def write_gheet_data_with_parts(parted_lists,
