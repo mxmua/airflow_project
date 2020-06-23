@@ -324,28 +324,37 @@ def get_report(parsed_file_name: str) -> dict:
 
 def render_and_send_report(parsed_file_name: str) -> None:
     report = get_report(parsed_file_name=parsed_file_name)
-    report_str = f"""Last check report:
+    first_str = f"""Last check report:
 Total checked: {report['rows_success_count']+report['rows_failed_count']}
 
 Successful: {report['rows_success_count']}
 Failed: {report['rows_failed_count']}\n\nFailed details:\n"""
+    max_string_per_message = 45
 
-    for failed_row in report['rows_failed_detail']:
-        report_str += f'{failed_row[0]}: {failed_row[1]} \n'
+    errors_string = '\n'.join(['. '.join(row)
+                               for row in report['rows_failed_detail']])
+    all_string = (first_str + errors_string).split('\n')
+
+    messages = [all_string[lines:lines+max_string_per_message]
+                for lines in range(0, len(all_string), max_string_per_message)]
+
+    for message in messages:
+        message_test = '\n'.join(message)
+        bot_message(message_text=message_test)
 
     # print(report_str)
 
-    report_message_lines = report_str.split('\n')
-    message_part = ''
-    n = 0
-    for line in report_message_lines:
-        n += 1
-        message_part += line + '\n'
-        if n >= 50:
-            bot_message(message_text=message_part)
-            n = 0
-            message_part = ''
-    bot_message(message_text=message_part)  # last part
+    # report_message_lines = report_str.split('\n')
+    # message_part = ''
+    # n = 0
+    # for line in report_message_lines:
+    #     n += 1
+    #     message_part += line + '\n'
+    #     if n >= 50:
+    #         bot_message(message_text=message_part)
+    #         n = 0
+    #         message_part = ''
+    # bot_message(message_text=message_part)  # last part
 
 
 def write_gheet_data_with_parts(parted_lists,
