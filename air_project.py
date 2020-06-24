@@ -14,7 +14,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 
 from bs4 import BeautifulSoup
-from requests.exceptions import Timeout, ConnectTimeout, HTTPError, RequestException
+from requests.exceptions import Timeout, \
+    ConnectTimeout, HTTPError, RequestException
 
 import secur.credentials as ENV
 import air_project_statsd as stat
@@ -311,9 +312,10 @@ def bot_send_file(file_name: str, **kwargs) -> None:
 def get_report(parsed_file_name: str) -> dict:
 
     data_from_file = csv_dict_reader(parsed_file_name, 'N')
-    loaded_csv_data = [[row, data_from_file[row]['url'],
-                        data_from_file[row]['watchers_count']] for row in
-                       data_from_file if data_from_file[row]['rechecked'] == 'True']
+    loaded_csv_data = [
+        [row, data_from_file[row]['url'],
+         data_from_file[row]['watchers_count']] for row in
+        data_from_file if data_from_file[row]['rechecked'] == 'True']
 
     failed = [[row[0], row[1]]
               for row in loaded_csv_data if row[2] == 'unavailable']
@@ -334,7 +336,10 @@ def render_and_send_report(parsed_file_name: str) -> None:
 Total checked: {report['rows_success_count']+report['rows_failed_count']}
 
 Successful: {report['rows_success_count']}
-Failed: {report['rows_failed_count']}\n\nFailed details:\n"""
+Failed: {report['rows_failed_count']}\
+
+Failed details:
+"""
     # max_string_per_message = 45
 
     errors_string = '\n'.join(['. '.join(row)
@@ -345,13 +350,15 @@ Failed: {report['rows_failed_count']}\n\nFailed details:\n"""
     bot_message(message_text=first_str)
     bot_send_file(ENV.ERRORS_FILE)
 
-    sc_client = stat.ProjStatsdClient(host='metrics.python-jitsu.club', port='8125')
-    sc_client.flat_value(context='urls_parsed_total', value=report['rows_success_count']+report['rows_failed_count'])
-    sc_client.flat_value(context='urls_parsed_successful', value=report['rows_success_count'])
-    sc_client.flat_value(context='urls_parsed_failed', value=report['rows_failed_count'])
-
-
-
+    sc_client = stat.ProjStatsdClient(
+        host='metrics.python-jitsu.club', port='8125')
+    sc_client.flat_value(context='urls_parsed_total',
+                         value=report['rows_success_count']
+                         + report['rows_failed_count'])
+    sc_client.flat_value(context='urls_parsed_successful',
+                         value=report['rows_success_count'])
+    sc_client.flat_value(context='urls_parsed_failed',
+                         value=report['rows_failed_count'])
 
 
 def write_gheet_data_with_parts(parted_lists,

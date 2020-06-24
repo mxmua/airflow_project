@@ -2,7 +2,9 @@ import statsd
 
 
 class ProjStatsdClient:
-    def __init__(self, host, port, user_id='mxmua', dag_id='air101_project_with_parts'):
+    def __init__(self, host,
+                 port, user_id='mxmua',
+                 dag_id='air101_project_with_parts'):
         self.gauge_prefix = f'airflow101.{user_id}.{dag_id}'
         self._client = statsd.StatsClient(host, port)
 
