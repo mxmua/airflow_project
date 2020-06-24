@@ -14,7 +14,7 @@ import secur.credentials as ENV
 
 args = {
     'owner': 'air101',
-    'start_date': days_ago(2),
+    'start_date': days_ago(1),
     'retries': 0,
     'retry_delay': timedelta(minutes=1),
 }
