@@ -12,8 +12,7 @@ import air_project as libs
 import secur.credentials as ENV
 
 
-# PARTS_NUMBER = 4
-PARTS_NUMBER = 20
+PARTS_NUMBER = 4
 
 args = {
     'owner': 'air101',
