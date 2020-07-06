@@ -1,15 +1,12 @@
 import gspread
 import csv
-# import time
 import requests
 import re
 import json
 from datetime import datetime
 from pathlib import Path
-# from bs4 import BeautifulSoup
-# from random import randrange
-# from collections import OrderedDict
-
+import numpy as np
+from os import remove
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -17,32 +14,25 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 
 from bs4 import BeautifulSoup
-from requests.exceptions import Timeout, ConnectTimeout, HTTPError, RequestException
+from requests.exceptions import Timeout, \
+    ConnectTimeout, HTTPError, RequestException
 
 import secur.credentials as ENV
+import air_project_statsd as stat
 
-# TABLE_URL = 'https://docs.google.com/spreadsheets/d/1UK-aoLDoJ724KGUN0AzgOLKW1S05W2FLZmSYHdjjYig/'
-#
-# # FILES_PATH = Path('/home/dimk/Python/airflow_project')
-# FILES_PATH = Path('/home/maxim/WORK/airflow101_project/')
-# UPLOADED_GSHEET_FILE = Path.joinpath(FILES_PATH, 'sheet.csv')
-#
-# PARSED_DATA_SET_FILE = Path.joinpath(FILES_PATH, 'parsed.csv')
-#
-#
-# PARSED_LOG = Path.joinpath(FILES_PATH, 'parsed.log')
-# GSHEET_KEY_FILE = Path.joinpath(FILES_PATH, 'key.json')
 
 TABLE_URL = ENV.TABLE_URL
 
 FILES_PATH = ENV.FILES_PATH
 UPLOADED_GSHEET_FILE = ENV.UPLOADED_GSHEET_FILE
 
+
 PARSED_DATA_SET_FILE = ENV.PARSED_DATA_SET_FILE
 
 PARSED_LOG = ENV.PARSED_LOG
 GSHEET_KEY_FILE = ENV.GSHEET_KEY_FILE
 
+PARTS_NUMBER = 4
 
 SITE_NAME_WITH_TAGS = {
     'habr': {'tag': 'span', 'class': 'post-stats__views-count'},
@@ -53,7 +43,8 @@ SITE_NAME_WITH_TAGS = {
 
 
 def write_list_to_csv(table_headers, data_list,
-                      file_name, add_number_row=True):
+                      file_name, start_line=3, add_number_row=True
+                      ):
     with open(file_name, 'w+',  newline="", encoding='utf-8') as file:
         if add_number_row:
             table_headers.insert(0, 'N')
@@ -63,7 +54,7 @@ def write_list_to_csv(table_headers, data_list,
             if not isinstance(row, list):
                 row = [row]
             if add_number_row:
-                row.insert(0, row_number + 3)
+                row.insert(0, row_number + start_line)
             write.writerow(row)
 
 
@@ -76,11 +67,20 @@ def write_dictlist_to_csv(data_list,
         writer.writerows(data_list)
 
 
+def add_number_to_filename(file_name, number):
+    path = Path(file_name)
+    return Path.joinpath(
+        path.parent, f'{number}_{path.name}')
+
+
 def get_url_from_gsheet(table_url: str,
-                        auth_json_file=GSHEET_KEY_FILE):
+                        auth_json_file=GSHEET_KEY_FILE,
+                        parts=PARTS_NUMBER):
     gc = gspread.service_account(filename=auth_json_file)
     sh = gc.open_by_url(table_url)
-    return sh.sheet1.col_values(1)[2:]
+    all_values = sh.sheet1.col_values(1)[2:]
+    parted = np.array_split(all_values, parts)
+    return parted
 
 
 def remove_unnecessary(watch_count, site_name):
@@ -120,7 +120,6 @@ def get_watchers_with_tag(response, site_name):
 
 def create_browser(url):
     # sudo apt install chromium-chromedriver
-
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
     browser = webdriver.Chrome(options=options)
@@ -163,11 +162,11 @@ def get_response(url: str, allow_redirects=True):
 
 
 def csv_dict_reader(file_name: str, key_field):
-    result_table = []
+    result_table = {}
     with open(file_name) as file_obj:
         reader = csv.DictReader(file_obj, delimiter=',')
         for line in reader:
-            result_table.append(line)
+            result_table[line[key_field]] = line
     return result_table
 
 
@@ -196,6 +195,10 @@ def parse_url(url):
     except Exception as ex:
         print(f'{url} - {ex}')
         watchers_count = 'unavailable'
+
+    if watchers_count in (None, ''):
+        watchers_count = 'unavailable'
+
     return watchers_count, int(
         datetime.now().timestamp())
 
@@ -213,49 +216,75 @@ def is_row_fresh(uploaded_row,
 
 
 def csv_parser(uploaded_sheet_file=UPLOADED_GSHEET_FILE,
-               parsed_file_name=PARSED_DATA_SET_FILE):
+               parsed_file_name=PARSED_DATA_SET_FILE,
+               part_number=PARTS_NUMBER):
+
+    parsed_parted_file_name = add_number_to_filename(
+        parsed_file_name, part_number)
+    uploaded_sheet_file = add_number_to_filename(
+        uploaded_sheet_file, part_number)
+
     loaded_csv_data = csv_dict_reader(uploaded_sheet_file, 'N')
     # first load
-    is_first = not Path(PARSED_DATA_SET_FILE).exists()
+    parsed_part = []
+    is_first = not Path(parsed_file_name).exists()
     if not is_first:
         parsed_data = csv_dict_reader(parsed_file_name, 'N')
 
-    for row_number, uploaded_row in enumerate(loaded_csv_data):
-        if not is_first:
-            parsed_row_from_file = parsed_data[row_number]
-            if is_row_fresh(uploaded_row, parsed_row_from_file):
-                loaded_csv_data[row_number]['watchers_count'] = parsed_row_from_file['watchers_count']
-                loaded_csv_data[row_number]['parsed_date'] = parsed_row_from_file['parsed_date']
-                loaded_csv_data[row_number]['rechecked'] = False
+    for uploaded_row_number in loaded_csv_data:
+        if not is_first and uploaded_row_number in parsed_data:
+            parsed_row = parsed_data[uploaded_row_number]
+            if is_row_fresh(loaded_csv_data[uploaded_row_number], parsed_row):
+                loaded_csv_data[uploaded_row_number]['watchers_count'] = \
+                    parsed_row['watchers_count']
+                loaded_csv_data[uploaded_row_number]['parsed_date'] = \
+                    parsed_row['parsed_date']
+                loaded_csv_data[uploaded_row_number]['rechecked'] = False
+                parsed_part.append(loaded_csv_data[uploaded_row_number])
                 continue
 
-        watchers_count, parsed_date = parse_url(uploaded_row['url'])
-
-        if not watchers_count:
-            watchers_count = 'unavailable'
-
-        loaded_csv_data[row_number]['watchers_count'] = watchers_count
-        loaded_csv_data[row_number]['parsed_date'] = parsed_date
-        loaded_csv_data[row_number]['rechecked'] = True
+        watchers_count, parsed_date = parse_url(
+            loaded_csv_data[uploaded_row_number]['url'])
+        loaded_csv_data[uploaded_row_number]['watchers_count'] = watchers_count
+        loaded_csv_data[uploaded_row_number]['parsed_date'] = parsed_date
+        loaded_csv_data[uploaded_row_number]['rechecked'] = True
+        parsed_part.append(loaded_csv_data[uploaded_row_number])
 
         # time.sleep(randrange(1, 4))
-        write_dictlist_to_csv(loaded_csv_data, PARSED_DATA_SET_FILE)
+        write_dictlist_to_csv(parsed_part, parsed_parted_file_name)
+    write_dictlist_to_csv(parsed_part, parsed_parted_file_name)
 
 
 def write_to_gsheet(parsed_file_name=PARSED_DATA_SET_FILE,
                     auth_json_file=GSHEET_KEY_FILE,
-                    table_url=TABLE_URL):
+                    table_url=TABLE_URL,
+                    parts=PARTS_NUMBER):
+
+    loaded_csv_data = {}
+
+    for part_number in range(parts):
+        part_file_name = add_number_to_filename(
+            parsed_file_name, part_number + 1)
+        part_data = csv_dict_reader(part_file_name, 'N')
+        loaded_csv_data.update(part_data)
+        remove(part_file_name)
+    final_data_set = []
+    watchers_list = []
+    for row_number in loaded_csv_data:
+        final_data_set.append(loaded_csv_data[row_number])
+        watchers_list.append([loaded_csv_data[row_number]['watchers_count']])
+
+    write_dictlist_to_csv(final_data_set, parsed_file_name)
+
+    first_cell = f'D{final_data_set[0]["N"]}'
+    end_cell = f'D{final_data_set[-1]["N"]}'
 
     gc = gspread.service_account(filename=auth_json_file)
     sh = gc.open_by_url(table_url)
-    loaded_csv_data = csv_dict_reader(parsed_file_name, 'N')
-    watchers_list = []
-    for row in loaded_csv_data:
-        watchers_list.append([row['watchers_count']])
 
-    first_cell = f'D{loaded_csv_data[0]["N"]}'
-    end_cell = f'D{loaded_csv_data[-1]["N"]}'
-
+    all_values = sh.sheet1.col_values(4)[2:]
+    empty_list = [[''] for i in range(len(all_values))]
+    sh.sheet1.update(f'D3:D{len(all_values)+3}', empty_list)
     sh.sheet1.update(f'{first_cell}:{end_cell}', watchers_list)
 
 
@@ -270,66 +299,101 @@ def bot_message(message_text: str, **kwargs) -> None:
     print(response)
 
 
+def bot_send_file(file_name: str, **kwargs) -> None:
+    with open(file_name, 'rb') as file:
+        post_data = {'chat_id': ENV.TG_BOT_CHAT_ID}
+        post_file = {'document': file}
+        response = requests.post(
+            f'https://api.telegram.org/bot{ENV.TG_BOT_TOKEN}/sendDocument',
+            data=post_data, files=post_file)
+        print(response.json())
+
+
 def get_report(parsed_file_name: str) -> dict:
+
+    data_from_file = csv_dict_reader(parsed_file_name, 'N')
+    loaded_csv_data = [
+        [row, data_from_file[row]['url'],
+         data_from_file[row]['watchers_count']] for row in
+        data_from_file if data_from_file[row]['rechecked'] == 'True']
+
+    failed = [[row[0], row[1]]
+              for row in loaded_csv_data if row[2] == 'unavailable']
+
+    successful_count = len(loaded_csv_data)-len(failed)
+
     report_dict = {
-        'rows_success_count': 0,
-        'rows_failed_count': 0,
-        'rows_failed_detail': [],
+        'rows_success_count': successful_count,
+        'rows_failed_count': len(failed),
+        'rows_failed_detail': failed,
     }
-
-    with open(parsed_file_name) as file_obj:
-        reader = csv.DictReader(file_obj, delimiter=',')
-
-        for line in reader:
-            row_number = line['N']
-            url = line['url']
-            watchers_count = line['watchers_count'].strip()
-
-            if re.match(r'([0-9]+)(.?)([0-9]?[k]?)$', watchers_count):
-                report_dict['rows_success_count'] += 1
-            else:
-                report_dict['rows_failed_count'] += 1
-                report_dict['rows_failed_detail'].append([row_number, url])
     return report_dict
 
 
 def render_and_send_report(parsed_file_name: str) -> None:
     report = get_report(parsed_file_name=parsed_file_name)
-    report_str = f"rows_success_count: {report['rows_success_count']};\nrows_failed_count: \
-        {report['rows_failed_count']};\n\nFailed details:\n"
+    first_str = f"""Last check report:
+Total checked: {report['rows_success_count']+report['rows_failed_count']}
 
-    for failed_row in report['rows_failed_detail']:
-        report_str += f'{failed_row[0]}: {failed_row[1]} \n'
+Successful: {report['rows_success_count']}
+Failed: {report['rows_failed_count']}\
 
-    # print(report_str)
+Failed details:
+"""
+    # max_string_per_message = 45
 
-    report_message_lines = report_str.split('\n')
-    message_part = ''
-    n = 0
-    for line in report_message_lines:
-        n += 1
-        message_part += line + '\n'
-        if n >= 50:
-            bot_message(message_text=message_part)
-            n = 0
-            message_part = ''
-    bot_message(message_text=message_part)  # last part
+    errors_string = '\n'.join(['. '.join(row)
+                               for row in report['rows_failed_detail']])
+    with open(ENV.ERRORS_FILE, 'w+',  newline="", encoding='utf-8') as file:
+        file.write(errors_string)
+
+    bot_message(message_text=first_str)
+    bot_send_file(ENV.ERRORS_FILE)
+
+    sc_client = stat.ProjStatsdClient(
+        host='metrics.python-jitsu.club', port='8125')
+    sc_client.flat_value(context='urls_parsed_total',
+                         value=report['rows_success_count']
+                         + report['rows_failed_count'])
+    sc_client.flat_value(context='urls_parsed_successful',
+                         value=report['rows_success_count'])
+    sc_client.flat_value(context='urls_parsed_failed',
+                         value=report['rows_failed_count'])
+
+
+def write_gheet_data_with_parts(parted_lists,
+                                parts=PARTS_NUMBER,
+                                parent_file_name=UPLOADED_GSHEET_FILE):
+    start_line = 3
+    for part_number, parted_list in enumerate(parted_lists):
+        part_file_name = add_number_to_filename(
+            parent_file_name, part_number+1)
+
+        write_list_to_csv(['url'],
+                          parted_list,
+                          part_file_name, start_line=start_line)
+        start_line = start_line + len(parted_list)
 
 
 def main():
+    # testing part
     start_time = datetime.now()
     print('-------------------------')
     print(start_time)
     print('-------------------------')
 
-    csv_file_name = UPLOADED_GSHEET_FILE
-    write_list_to_csv(['url'], get_url_from_gsheet(TABLE_URL), csv_file_name)
-    csv_parser()
-    write_to_gsheet()
+    # write_gheet_data_with_parts(get_url_from_gsheet(TABLE_URL))
 
-    print('-------------------------')
-    print(datetime.now() - start_time)
-    print('-------------------------')
+    # for i in range(PARTS_NUMBER):
+    #     csv_parser(part_number=i+1)
+
+    # write_to_gsheet(parts=PARTS_NUMBER)
+    # get_report(parsed_file_name=PARSED_DATA_SET_FILE)
+
+    render_and_send_report(parsed_file_name=PARSED_DATA_SET_FILE)
+    # print('-------------------------')
+    # print(datetime.now() - start_time)
+    # print('-------------------------')
 
 
 if __name__ == '__main__':
